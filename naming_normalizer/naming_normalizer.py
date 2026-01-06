@@ -123,15 +123,41 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
     # Process directories first (top-down order)
     dirs_to_process.sort(key=lambda x: len(x[0].parts), reverse=True)
 
+    # Track normalized names per directory to detect conflicts within the batch
+    # Key: parent directory path, Value: set of normalized names already assigned
+    normalized_names_by_dir = {}
+
     # Process all rename operations
     for old_path, new_name in dirs_to_process + files_to_process:
         new_path = old_path.parent / new_name
+        parent_dir = old_path.parent
 
-        # Check if target already exists
+        # Initialize tracking for this directory if needed
+        if parent_dir not in normalized_names_by_dir:
+            normalized_names_by_dir[parent_dir] = set()
+            # Add existing names in the directory to the set (to detect conflicts with existing files)
+            try:
+                for item in parent_dir.iterdir():
+                    normalized_names_by_dir[parent_dir].add(item.name)
+            except (PermissionError, OSError):
+                pass
+
+        # Check if target already exists in filesystem (and it's not the same file)
+        # This handles the case where a file with the normalized name already exists
         if new_path.exists() and new_path != old_path:
             print(f"Warning: Target already exists, skipping: {old_path} -> {new_path}", file=sys.stderr)
             continue
 
+        # Check if this normalized name is already assigned to another item in this batch
+        # This handles the case where multiple items normalize to the same name
+        if new_name in normalized_names_by_dir[parent_dir]:
+            # Only skip if it's not the same file (i.e., the file is already normalized)
+            if new_path != old_path:
+                print(f"Warning: Target already exists, skipping: {old_path} -> {new_path}", file=sys.stderr)
+                continue
+
+        # Mark this normalized name as used (even if it's the same file, to track it)
+        normalized_names_by_dir[parent_dir].add(new_name)
         rename_operations.append((old_path, new_path))
 
     if not rename_operations:
