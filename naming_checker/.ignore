@@ -30,5 +30,8 @@ lichtfeldstudio/
 gsplat/
 dna/
 sam2/
+sam2_cmd/
+colmap_3_13_0/
+glomap_1_2_0/
 
 datasets/
