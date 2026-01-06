@@ -18,6 +18,12 @@ build/
 # Adiitional folders
 
 AppData/
+
+Library/
+Music/
+Pictures/
+Zotero/
+
 miniconda3/
 
 Blackmagic Design/
@@ -35,3 +41,4 @@ colmap_3_13_0/
 glomap_1_2_0/
 
 datasets/
+
