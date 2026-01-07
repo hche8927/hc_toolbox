@@ -2,45 +2,49 @@
 # Lines starting with # are comments
 # Empty lines are ignored
 
-# Ignore common build/dependency directories
+# Ignore hidden files and directories (starting with .)
+.*
+.ignore
 
+# Common special files and directories
+README*
+LICENSE*
+CHANGELOG*
+CONTRIBUTING*
+AUTHORS*
+COPYING*
+INSTALL*
+Makefile
+Makefile.*
+Dockerfile*
+.dockerignore
+.gitignore
+.gitattributes
+.gitmodules
+
+# Common documentation files (keep standard names)
+*.md
+*.txt
+*.rst
+
+# Common build/dependency directories
 node_modules/
 __pycache__/
 *.pyc
 .venv/
 venv/
 build/
+dist/
+*.egg-info/
 
-# Ignore hidden files and directories (starting with .)
-
-.*
-
-# Adiitional folders
-
-AppData/
-
-Library/
-Music/
-Pictures/
-Zotero/
-
-miniconda3/
-
-Blackmagic Design/
-Topaz Video Projects/
-ComfyUI/
-InvokeAI/
-
-vcpkg/
-lichtfeldstudio/
-gsplat/
-dna/
-sam2/
-sam2_cmd/
-colmap_3_13_0/
-glomap_1_2_0/
-
-datasets/
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
 # Cloud drive directories
 OneDrive/
@@ -53,3 +57,25 @@ Box/
 *.icloud
 *.cloudf
 
+# Additional folders
+miniconda3/
+datasets/
+
+AppData/
+Library/
+Music/
+Pictures/
+
+Zotero/
+Blackmagic Design/
+Topaz Video Projects/
+ComfyUI/
+InvokeAI/
+vcpkg/
+lichtfeldstudio/
+gsplat/
+dna/
+sam2/
+sam2_cmd/
+colmap_3_13_0/
+glomap_1_2_0/

@@ -66,7 +66,12 @@ def _check_pattern_match(pattern, path_str, path_parts, root_relative):
     """Check if a pattern matches a path."""
     # Handle special gitignore pattern: .* means "starts with dot"
     if pattern == ".*":
-        return any(part.startswith(".") for part in path_parts)
+        # Check if any part of the path starts with a dot
+        if path_parts:
+            return any(part.startswith(".") for part in path_parts)
+        # If path_parts is empty, check the path string directly
+        # Also check for dot-prefixed files in subdirectories
+        return path_str.startswith(".") or "/." in path_str
 
     # Convert ** to wildcard matching for recursive patterns
     fnmatch_pattern = pattern.replace("**/", "*").replace("/**", "*").replace("**", "*")

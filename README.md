@@ -48,11 +48,11 @@ Validates file and folder names against a regex pattern. Useful for enforcing na
 
 **Features:**
 - Validate names against custom regex patterns
-- Support for ignore patterns (gitignore-style)
+- Support for ignore patterns (gitignore-style) via `.ignore` file
+- Automatically skips hidden files (starting with `.`) and common special files
 - Save results to a file
+- Cross-platform support (Windows, Mac, Linux)
 - GUI mode available
-
-**Note:** To avoid checking cloud drives (OneDrive, iCloud, etc.), add them to your `.ignore` file. The default `.ignore` includes common cloud drive patterns.
 
 **Usage:**
 ```bash
@@ -60,10 +60,34 @@ cd naming_checker
 python naming_checker.py <path> [-r REGEX] [-i IGNORE_FILE] [-o OUTPUT_DIR] [--gui]
 ```
 
-**Example:**
+**Examples:**
 ```bash
-python naming_checker.py /path/to/check -r "^[a-z0-9_]+$" --gui
+# Check with default pattern (lowercase alphanumeric and underscores)
+python naming_checker.py /path/to/check
+
+# Check with custom regex pattern
+python naming_checker.py /path/to/check -r "^[a-z0-9_]+$"
+
+# Use custom ignore file
+python naming_checker.py /path/to/check -i /path/to/.ignore
+
+# Save results to custom output directory
+python naming_checker.py /path/to/check -o /path/to/output
+
+# Use GUI mode
+python naming_checker.py /path/to/check --gui
 ```
+
+**Ignore Patterns:**
+The checker uses a `.ignore` file (similar to `.gitignore`) to skip files and directories that shouldn't be checked. By default, it looks for `.ignore` in the current directory or the target directory. The default `.ignore` file includes:
+- Hidden files and directories (starting with `.`)
+- Common special files (README, LICENSE, CHANGELOG, etc.)
+- Documentation files (*.md, *.txt, *.rst)
+- Build directories (node_modules, __pycache__, build, etc.)
+- IDE files (.vscode, .idea, .DS_Store, etc.)
+- Cloud drive directories (OneDrive, iCloud Drive, Google Drive, Dropbox, Box, etc.)
+
+You can customize the `.ignore` file to match your needs. To avoid checking cloud drives or other directories, add patterns like `OneDrive/`, `iCloud Drive/`, etc. to your `.ignore` file.
 
 ### Naming Normalizer
 
@@ -80,6 +104,7 @@ Normalizes file and folder names to a standard format (lowercase with underscore
 - Confirm option (requires both `--no-dry-run` and `--confirm` to actually rename)
 - Handles case-insensitive filesystems (Mac/Windows) correctly
 - Detects and warns about naming conflicts
+- Cross-platform support (Windows, Mac, Linux)
 - GUI mode available
 
 **Usage:**
@@ -138,9 +163,10 @@ Extracts frames from video files with various options for customization.
 
 **Features:**
 - Extract frames at specified intervals
-- Resize frames with different interpolation methods
+- Resize frames with different interpolation methods (nearest, linear, cubic, area, lanczos4)
 - Extract specific frame ranges
 - Show video information
+- Cross-platform support (Windows, Mac, Linux)
 - GUI mode available
 
 **Usage:**
@@ -159,6 +185,12 @@ python video_frame_extractor.py video.mp4 -i 10
 
 # Extract frames with 2x scaling
 python video_frame_extractor.py video.mp4 --scale 2.0
+
+# Extract frames with custom interpolation method
+python video_frame_extractor.py video.mp4 --interpolation cubic
+
+# Extract specific frame range
+python video_frame_extractor.py video.mp4 -s 100 -e 500
 
 # Show video information
 python video_frame_extractor.py video.mp4 --info
