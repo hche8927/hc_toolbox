@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-Minimalistic naming normalizer that normalizes file and folder names to a standard format.
+Naming normalizer that normalizes file and folder names to a standard format.
+
+Converts file and directory names to lowercase with underscores, removing special
+characters. Supports ignore patterns (gitignore-style) to skip specific files
+and directories. Handles case-insensitive filesystems correctly and detects
+naming conflicts.
 """
 
 import argparse
+import fnmatch
 import os
 import re
 import sys
@@ -11,16 +17,203 @@ import unicodedata
 from pathlib import Path
 
 
+def load_ignore_patterns(ignore_file=".ignore"):
+    """
+    Load ignore patterns from .ignore file (gitignore-style).
+
+    Args:
+        ignore_file: Path to ignore file
+
+    Returns:
+        List of ignore patterns
+    """
+    ignore_path = Path(ignore_file)
+    patterns = []
+
+    if ignore_path.exists():
+        try:
+            with open(ignore_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    # Skip empty lines and comments
+                    if not line or line.startswith("#"):
+                        continue
+                    patterns.append(line)
+        except Exception as e:
+            print(f"Warning: Could not read .ignore: {e}.", file=sys.stderr)
+
+    return patterns
+
+
+def _normalize_pattern(pattern):
+    """Normalize a gitignore pattern by handling special prefixes/suffixes."""
+    negated = pattern.startswith("!")
+    if negated:
+        pattern = pattern[1:].strip()
+
+    root_relative = pattern.startswith("/")
+    if root_relative:
+        pattern = pattern[1:]
+
+    dir_only = pattern.endswith("/")
+    if dir_only:
+        pattern = pattern[:-1]
+
+    return pattern, negated, root_relative, dir_only
+
+
+def _check_pattern_match(pattern, path_str, path_parts, root_relative):
+    """Check if a pattern matches a path."""
+    # Handle special gitignore pattern: .* means "starts with dot"
+    if pattern == ".*":
+        return any(part.startswith(".") for part in path_parts)
+
+    # Convert ** to wildcard matching for recursive patterns
+    fnmatch_pattern = pattern.replace("**/", "*").replace("/**", "*").replace("**", "*")
+
+    if root_relative:
+        # Match from root
+        return (fnmatch.fnmatch(path_str, fnmatch_pattern) or
+                fnmatch.fnmatch(path_str, fnmatch_pattern + "/*"))
+
+    # Match anywhere in path
+    if (fnmatch.fnmatch(path_str, "*" + fnmatch_pattern) or
+            fnmatch.fnmatch(path_str, "*" + fnmatch_pattern + "/*")):
+        return True
+
+    # Check path parts
+    for i in range(len(path_parts)):
+        part = path_parts[i]
+        subpath = "/".join(path_parts[i:])
+        if (fnmatch.fnmatch(part, fnmatch_pattern) or
+                fnmatch.fnmatch(subpath, fnmatch_pattern) or
+                fnmatch.fnmatch(subpath, "*" + fnmatch_pattern) or
+                fnmatch.fnmatch(subpath, fnmatch_pattern + "/*")):
+            return True
+
+    return False
+
+
+def matches_ignore_pattern(path, patterns, root_path):
+    """
+    Check if a path matches any ignore pattern (gitignore-style).
+
+    Args:
+        path: Path to check (Path object)
+        patterns: List of ignore patterns
+        root_path: Root directory being checked (Path object)
+
+    Returns:
+        True if path should be ignored, False otherwise
+    """
+    if not patterns:
+        return False
+
+    # Get relative path from root
+    try:
+        rel_path = path.relative_to(root_path)
+    except ValueError:
+        return False
+
+    # Convert to forward slashes for pattern matching (works on all platforms)
+    path_str = str(rel_path).replace("\\", "/")
+    path_parts = path_str.split("/") if path_str else []
+    is_dir = path.is_dir()
+
+    matched = False
+
+    for pattern in patterns:
+        # Normalize pattern
+        pattern, negated, root_relative, dir_only = _normalize_pattern(pattern)
+
+        # Skip empty patterns
+        if not pattern:
+            continue
+
+        # Skip directory-only patterns for files
+        if dir_only and not is_dir:
+            continue
+
+        # Check if pattern matches
+        pattern_matches = _check_pattern_match(pattern, path_str, path_parts, root_relative)
+
+        if pattern_matches:
+            matched = not negated  # Negation un-ignores the path
+
+    return matched
+
+
+def _contains_non_latin_script(text):
+    """
+    Check if text contains characters from non-Latin scripts that should be preserved.
+
+    This includes: Chinese, Japanese, Korean, Russian (Cyrillic), Hebrew, Arabic,
+    Thai, Hindi, and other non-Latin scripts. Accented Latin characters (like é, ñ)
+    are allowed to be normalized.
+
+    Args:
+        text: Text to check
+
+    Returns:
+        True if text contains non-Latin script characters, False otherwise
+    """
+    for char in text:
+        code_point = ord(char)
+        # Skip combining marks (accents, diacritics) - these can be normalized
+        if unicodedata.category(char).startswith('M'):
+            continue
+
+        # CJK (Chinese, Japanese, Korean)
+        if (0x4E00 <= code_point <= 0x9FFF or  # CJK Unified Ideographs
+            0x3400 <= code_point <= 0x4DBF or  # CJK Extension A
+            0x20000 <= code_point <= 0x2A6DF or  # CJK Extension B
+            0x3040 <= code_point <= 0x309F or  # Hiragana
+            0x30A0 <= code_point <= 0x30FF or  # Katakana
+                0xAC00 <= code_point <= 0xD7AF):  # Hangul
+            return True
+        # Cyrillic (Russian, Bulgarian, etc.)
+        if 0x0400 <= code_point <= 0x04FF:
+            return True
+        # Hebrew
+        if 0x0590 <= code_point <= 0x05FF:
+            return True
+        # Arabic
+        if (0x0600 <= code_point <= 0x06FF or
+            0x0700 <= code_point <= 0x074F or
+                0x0750 <= code_point <= 0x077F):
+            return True
+        # Thai
+        if 0x0E00 <= code_point <= 0x0E7F:
+            return True
+        # Devanagari (Hindi, Sanskrit, etc.)
+        if 0x0900 <= code_point <= 0x097F:
+            return True
+        # Greek (preserve Greek script)
+        if 0x0370 <= code_point <= 0x03FF:
+            return True
+        # Armenian
+        if 0x0530 <= code_point <= 0x058F:
+            return True
+        # Georgian
+        if 0x10A0 <= code_point <= 0x10FF:
+            return True
+    return False
+
+
 def normalize_name(name, keep_extension=True):
     """
     Normalize a name to lowercase with underscores, removing special characters.
+
+    Preserves names containing non-Latin scripts (Chinese, Japanese, Korean, Russian,
+    Hebrew, Arabic, etc.) to avoid corrupting international file names. Accented
+    Latin characters (like é, ñ) are normalized to their ASCII equivalents.
 
     Args:
         name: Name to normalize
         keep_extension: If True, preserve file extension
 
     Returns:
-        Normalized name
+        Normalized name (or original if it contains non-Latin scripts)
     """
     if keep_extension and "." in name:
         # Split into base name and extension
@@ -31,7 +224,12 @@ def normalize_name(name, keep_extension=True):
         base_name = name
         extension = ""
 
+    # Check if base name contains non-Latin scripts - if so, preserve as-is
+    if _contains_non_latin_script(base_name):
+        return name
+
     # Normalize unicode characters (e.g., é -> e)
+    # This safely converts accented Latin characters to ASCII
     base_name = unicodedata.normalize("NFKD", base_name)
     base_name = base_name.encode("ascii", "ignore").decode("ascii")
 
@@ -54,7 +252,7 @@ def normalize_name(name, keep_extension=True):
     return base_name + extension
 
 
-def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
+def normalize_names(root_path, nested=False, dry_run=True, confirm=False, ignore_patterns=None):
     """
     Normalize all file and folder names in root_path.
 
@@ -63,6 +261,7 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
         nested: If True, process subdirectories recursively
         dry_run: If True, only show what would be renamed without actually renaming
         confirm: If True and dry_run is False, actually perform the renames
+        ignore_patterns: List of ignore patterns (gitignore-style)
     """
     root_path = Path(root_path).resolve()
     rename_operations = []
@@ -82,13 +281,11 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
     if nested:
         # Walk through all directories and files
         for root, dirs, files in os.walk(root_path):
+            # Filter out ignored directories (modify dirs in-place to skip them in os.walk)
+            dirs[:] = [d for d in dirs if not matches_ignore_pattern(Path(root) / d, ignore_patterns or [], root_path)]
+
             # Collect directory names
             for dir_name in dirs:
-                # Skip hidden files/directories (starting with .)
-                if dir_name.startswith("."):
-                    processed_count += 1
-                    update_progress()
-                    continue
                 dir_path = Path(root) / dir_name
                 normalized_name = normalize_name(dir_name, keep_extension=False)
                 if dir_name != normalized_name:
@@ -98,12 +295,12 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
 
             # Collect file names
             for file_name in files:
-                # Skip hidden files (starting with .)
-                if file_name.startswith("."):
+                file_path = Path(root) / file_name
+                # Skip if matches ignore pattern
+                if matches_ignore_pattern(file_path, ignore_patterns or [], root_path):
                     processed_count += 1
                     update_progress()
                     continue
-                file_path = Path(root) / file_name
                 normalized_name = normalize_name(file_name, keep_extension=True)
                 if file_name != normalized_name:
                     files_to_process.append((file_path, normalized_name))
@@ -114,8 +311,8 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
         try:
             items = list(root_path.iterdir())
             for item in items:
-                # Skip hidden files/directories (starting with .)
-                if item.name.startswith("."):
+                # Skip if matches ignore pattern
+                if matches_ignore_pattern(item, ignore_patterns or [], root_path):
                     processed_count += 1
                     update_progress()
                     continue
@@ -164,16 +361,16 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
         existing_files, assigned_names = normalized_names_by_dir[parent_dir]
 
         # Check if target already exists in filesystem (and it's not the same file)
-        # This handles the case where a file with the normalized name already exists
-        # On Mac (case-insensitive filesystem), we check the actual file names
-        # case-sensitively to avoid false positives when only the case differs
+        # This handles the case where a file with the normalized name already exists.
+        # On Mac (case-insensitive filesystem), we check actual file names case-sensitively
+        # to avoid false positives when only the case differs.
         existing_item = existing_files.get(new_name)
         if existing_item is not None and existing_item != old_path:
             print(f"Warning: Target already exists, skipping: {old_path} -> {new_path}", file=sys.stderr)
             continue
 
-        # Check if this normalized name is already assigned to another item in this batch
-        # This handles the case where multiple items normalize to the same name
+        # Check if this normalized name is already assigned to another item in this batch.
+        # This handles the case where multiple items normalize to the same name.
         if new_name in assigned_names:
             print(f"Warning: Target already exists, skipping: {old_path} -> {new_path}", file=sys.stderr)
             continue
@@ -249,6 +446,11 @@ def main():
         action="store_true",
         help="Confirm and actually perform the renames (requires --no-dry-run)"
     )
+    parser.add_argument(
+        "-i", "--ignore",
+        default=".ignore",
+        help="Ignore file for patterns (default: .ignore)"
+    )
 
     # Only add --gui and --ignore-gooey when NOT in GUI mode (hide them from Gooey UI)
     if not use_gui:
@@ -274,9 +476,23 @@ def main():
         print(f"Error: \"{args.path}\" is not a directory.", file=sys.stderr)
         sys.exit(1)
 
+    # Load ignore patterns
+    # Try to find .ignore file: first check the specified path, then check in root_path
+    root_path_obj = Path(args.path).resolve()
+    ignore_file_path = Path(args.ignore)
+    if not ignore_file_path.is_absolute() and not ignore_file_path.exists():
+        # If relative path and doesn't exist, try in root_path
+        try_ignore_path = root_path_obj / args.ignore
+        if try_ignore_path.exists():
+            ignore_file_path = try_ignore_path
+
+    ignore_patterns = load_ignore_patterns(ignore_file_path)
+    if ignore_patterns:
+        print(f"Loaded {len(ignore_patterns)} ignore pattern(s) from {ignore_file_path}")
+
     # Run the normalization
     dry_run = not args.no_dry_run
-    normalize_names(args.path, nested=args.nested, dry_run=dry_run, confirm=args.confirm)
+    normalize_names(args.path, nested=args.nested, dry_run=dry_run, confirm=args.confirm, ignore_patterns=ignore_patterns)
 
 
 if __name__ == "__main__":

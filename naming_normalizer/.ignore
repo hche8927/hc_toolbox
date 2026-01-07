@@ -1,0 +1,48 @@
+# Ignore patterns (gitignore-style)
+# Lines starting with # are comments
+# Empty lines are ignored
+
+# Ignore hidden files and directories (starting with .)
+.*
+.ignore
+
+# Common special files and directories
+README*
+LICENSE*
+CHANGELOG*
+CONTRIBUTING*
+AUTHORS*
+COPYING*
+INSTALL*
+Makefile
+Makefile.*
+Dockerfile*
+.dockerignore
+.gitignore
+.gitattributes
+.gitmodules
+
+# Common documentation files (keep standard names)
+*.md
+*.txt
+*.rst
+
+# Common build/dependency directories
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+

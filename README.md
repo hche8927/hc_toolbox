@@ -69,15 +69,21 @@ Normalizes file and folder names to a standard format (lowercase with underscore
 
 **Features:**
 - Normalize names to lowercase with underscores
+- Preserves names in non-Latin scripts (Chinese, Japanese, Korean, Russian, Hebrew, Arabic, etc.)
+- Normalizes accented Latin characters (é → e, ñ → n, etc.)
+- Support for ignore patterns (gitignore-style) via `.ignore` file
+- Automatically skips hidden files (starting with `.`) and common special files (README, LICENSE, etc.)
 - Nested rename toggle (default: off, only processes root level)
 - Dry run mode (default: on, shows what would be renamed without making changes)
-- Confirm option (requires both --no-dry-run and --confirm to actually rename)
+- Confirm option (requires both `--no-dry-run` and `--confirm` to actually rename)
+- Handles case-insensitive filesystems (Mac/Windows) correctly
+- Detects and warns about naming conflicts
 - GUI mode available
 
 **Usage:**
 ```bash
 cd naming_normalizer
-python naming_normalizer.py <path> [-n] [--no-dry-run] [--confirm] [--gui]
+python naming_normalizer.py <path> [-n] [--no-dry-run] [--confirm] [-i IGNORE_FILE] [--gui]
 ```
 
 **Examples:**
@@ -94,9 +100,34 @@ python naming_normalizer.py /path/to/normalize --no-dry-run --confirm
 # Process subdirectories recursively and rename
 python naming_normalizer.py /path/to/normalize -n --no-dry-run --confirm
 
+# Use custom ignore file
+python naming_normalizer.py /path/to/normalize -i /path/to/.ignore
+
 # Use GUI mode
 python naming_normalizer.py /path/to/normalize --gui
 ```
+
+**Ignore Patterns:**
+The normalizer uses a `.ignore` file (similar to `.gitignore`) to skip files and directories that shouldn't be renamed. By default, it looks for `.ignore` in the current directory or the target directory. The default `.ignore` file includes:
+- Hidden files and directories (starting with `.`)
+- Common special files (README, LICENSE, CHANGELOG, etc.)
+- Documentation files (*.md, *.txt, *.rst)
+- Build directories (node_modules, __pycache__, build, etc.)
+- IDE files (.vscode, .idea, .DS_Store, etc.)
+
+You can customize the `.ignore` file to match your needs.
+
+**International Character Support:**
+The normalizer automatically preserves file and directory names containing non-Latin scripts to prevent corruption of international file names. Names in the following scripts are preserved as-is:
+- Chinese (Simplified and Traditional)
+- Japanese (Hiragana, Katakana, Kanji)
+- Korean (Hangul)
+- Russian and other Cyrillic scripts
+- Hebrew
+- Arabic
+- Thai, Hindi, and other scripts
+
+Accented Latin characters (like café, résumé, naïve) are normalized to their ASCII equivalents (cafe, resume, naive).
 
 ### Video Frame Extractor
 
