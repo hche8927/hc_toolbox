@@ -42,3 +42,14 @@ glomap_1_2_0/
 
 datasets/
 
+# Cloud drive directories
+OneDrive/
+OneDrive - */
+iCloud Drive/
+iCloud/
+Google Drive/
+Dropbox/
+Box/
+*.icloud
+*.cloudf
+

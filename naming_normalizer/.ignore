@@ -46,3 +46,14 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Cloud drive directories
+OneDrive/
+OneDrive - */
+iCloud Drive/
+iCloud/
+Google Drive/
+Dropbox/
+Box/
+*.icloud
+*.cloudf
+

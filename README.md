@@ -52,6 +52,8 @@ Validates file and folder names against a regex pattern. Useful for enforcing na
 - Save results to a file
 - GUI mode available
 
+**Note:** To avoid checking cloud drives (OneDrive, iCloud, etc.), add them to your `.ignore` file. The default `.ignore` includes common cloud drive patterns.
+
 **Usage:**
 ```bash
 cd naming_checker
@@ -114,8 +116,9 @@ The normalizer uses a `.ignore` file (similar to `.gitignore`) to skip files and
 - Documentation files (*.md, *.txt, *.rst)
 - Build directories (node_modules, __pycache__, build, etc.)
 - IDE files (.vscode, .idea, .DS_Store, etc.)
+- Cloud drive directories (OneDrive, iCloud Drive, Google Drive, Dropbox, Box, etc.)
 
-You can customize the `.ignore` file to match your needs.
+You can customize the `.ignore` file to match your needs. To avoid processing cloud drives, add patterns like `OneDrive/`, `iCloud Drive/`, etc. to your `.ignore` file.
 
 **International Character Support:**
 The normalizer automatically preserves file and directory names containing non-Latin scripts to prevent corruption of international file names. Names in the following scripts are preserved as-is:
