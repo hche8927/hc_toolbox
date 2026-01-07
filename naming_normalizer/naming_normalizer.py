@@ -482,14 +482,22 @@ def main():
         sys.exit(1)
 
     # Load ignore patterns
-    # Try to find .ignore file: first check the specified path, then check in root_path
+    # Try to find .ignore file: check specified path, script directory, then root_path
     root_path_obj = Path(args.path).resolve()
+    script_dir = Path(__file__).parent.resolve()
     ignore_file_path = Path(args.ignore)
+
+    # If not absolute and doesn't exist, try multiple locations
     if not ignore_file_path.is_absolute() and not ignore_file_path.exists():
-        # If relative path and doesn't exist, try in root_path
-        try_ignore_path = root_path_obj / args.ignore
+        # Try in script directory first (where .ignore is bundled with the tool)
+        try_ignore_path = script_dir / args.ignore
         if try_ignore_path.exists():
             ignore_file_path = try_ignore_path
+        else:
+            # Try in root_path (target directory)
+            try_ignore_path = root_path_obj / args.ignore
+            if try_ignore_path.exists():
+                ignore_file_path = try_ignore_path
 
     ignore_patterns = load_ignore_patterns(ignore_file_path)
     if ignore_patterns:
