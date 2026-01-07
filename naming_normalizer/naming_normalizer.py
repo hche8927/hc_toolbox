@@ -84,6 +84,11 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
         for root, dirs, files in os.walk(root_path):
             # Collect directory names
             for dir_name in dirs:
+                # Skip hidden files/directories (starting with .)
+                if dir_name.startswith("."):
+                    processed_count += 1
+                    update_progress()
+                    continue
                 dir_path = Path(root) / dir_name
                 normalized_name = normalize_name(dir_name, keep_extension=False)
                 if dir_name != normalized_name:
@@ -93,6 +98,11 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
 
             # Collect file names
             for file_name in files:
+                # Skip hidden files (starting with .)
+                if file_name.startswith("."):
+                    processed_count += 1
+                    update_progress()
+                    continue
                 file_path = Path(root) / file_name
                 normalized_name = normalize_name(file_name, keep_extension=True)
                 if file_name != normalized_name:
@@ -104,6 +114,11 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
         try:
             items = list(root_path.iterdir())
             for item in items:
+                # Skip hidden files/directories (starting with .)
+                if item.name.startswith("."):
+                    processed_count += 1
+                    update_progress()
+                    continue
                 if item.is_dir():
                     normalized_name = normalize_name(item.name, keep_extension=False)
                     if item.name != normalized_name:
@@ -123,8 +138,10 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
     # Process directories first (top-down order)
     dirs_to_process.sort(key=lambda x: len(x[0].parts), reverse=True)
 
-    # Track normalized names per directory to detect conflicts within the batch
-    # Key: parent directory path, Value: set of normalized names already assigned
+    # Track normalized names per directory to detect conflicts
+    # Key: parent directory path, Value: tuple of (existing_files_dict, assigned_names_set)
+    # existing_files_dict: name -> Path (for case-sensitive checking on Mac)
+    # assigned_names_set: set of names already assigned in this batch
     normalized_names_by_dir = {}
 
     # Process all rename operations
@@ -134,30 +151,35 @@ def normalize_names(root_path, nested=False, dry_run=True, confirm=False):
 
         # Initialize tracking for this directory if needed
         if parent_dir not in normalized_names_by_dir:
-            normalized_names_by_dir[parent_dir] = set()
-            # Add existing names in the directory to the set (to detect conflicts with existing files)
+            existing_files = {}
+            # Store existing names in the directory as a dict: name -> actual Path
+            # This helps with case-insensitive filesystem detection on Mac
             try:
                 for item in parent_dir.iterdir():
-                    normalized_names_by_dir[parent_dir].add(item.name)
+                    existing_files[item.name] = item
             except (PermissionError, OSError):
                 pass
+            normalized_names_by_dir[parent_dir] = (existing_files, set())
+
+        existing_files, assigned_names = normalized_names_by_dir[parent_dir]
 
         # Check if target already exists in filesystem (and it's not the same file)
         # This handles the case where a file with the normalized name already exists
-        if new_path.exists() and new_path != old_path:
+        # On Mac (case-insensitive filesystem), we check the actual file names
+        # case-sensitively to avoid false positives when only the case differs
+        existing_item = existing_files.get(new_name)
+        if existing_item is not None and existing_item != old_path:
             print(f"Warning: Target already exists, skipping: {old_path} -> {new_path}", file=sys.stderr)
             continue
 
         # Check if this normalized name is already assigned to another item in this batch
         # This handles the case where multiple items normalize to the same name
-        if new_name in normalized_names_by_dir[parent_dir]:
-            # Only skip if it's not the same file (i.e., the file is already normalized)
-            if new_path != old_path:
-                print(f"Warning: Target already exists, skipping: {old_path} -> {new_path}", file=sys.stderr)
-                continue
+        if new_name in assigned_names:
+            print(f"Warning: Target already exists, skipping: {old_path} -> {new_path}", file=sys.stderr)
+            continue
 
-        # Mark this normalized name as used (even if it's the same file, to track it)
-        normalized_names_by_dir[parent_dir].add(new_name)
+        # Mark this normalized name as used in this batch
+        assigned_names.add(new_name)
         rename_operations.append((old_path, new_path))
 
     if not rename_operations:
